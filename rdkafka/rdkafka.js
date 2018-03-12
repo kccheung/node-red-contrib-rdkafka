@@ -38,8 +38,8 @@ module.exports = function(RED) {
                         'enable.auto.commit': node.autocommit,
                         'queue.buffering.max.ms': 1,
                         'fetch.min.bytes': 1,
-                        'fetch.wait.max.ms': 1,         //librkafka recommendation for low latency
-                        'fetch.error.backoff.ms': 100,   //librkafka recommendation for low latency
+                        'fetch.wait.max.ms': 1,         // librkafka recommendation for low latency
+                        'fetch.error.backoff.ms': 100,  // librkafka recommendation for low latency
                         'api.version.request': true
                     }, {});
 
@@ -69,7 +69,7 @@ module.exports = function(RED) {
                             if (data.value) {
                                 msg.payload = data.value.toString();
                             } else {
-                                msg.payload = ""; //in case of msg with null value
+                                msg.payload = "";  // in case of msg with null value
                                 //console.log('data.value was null');
                             }
                             if (data.key) {
@@ -135,9 +135,10 @@ module.exports = function(RED) {
                     'message.send.max.retries': 15,
                     'socket.keepalive.enable': true,
                     'queue.buffering.max.messages': 100000,
+                    'queue.buffering.max.kbytes': 1000000,
                     'queue.buffering.max.ms': 10,
                     'batch.num.messages': 1000000,
-                    'api.version.request': true  //added to force 0.10.x style timestamps on all messages
+                    'api.version.request': true  // added to force 0.10.x style timestamps on all messages
                 });
 
                 // Connect to the broker manually
@@ -151,6 +152,16 @@ module.exports = function(RED) {
                         shape: "dot",
                         text: "connected"
                     });
+
+                    // need to keep polling for a while to ensure the delivery reports are received
+                    // refer to https://github.com/Blizzard/node-rdkafka/blob/master/examples/producer.md
+                    var pollLoop = setInterval(function() {
+                        producer.poll();
+                        if (counter === maxMessages) {
+                            clearInterval(pollLoop);
+                            producer.disconnect();
+                        }
+                    }, 2000);
                 });
 
                 // Any errors we encounter, including connection errors
@@ -168,10 +179,10 @@ module.exports = function(RED) {
             }
 
             this.on("input", function(msg) {
-                //handle different payload types including JSON object
+                // handle different payload types including JSON object
                 var partition, key, topic, value, timestamp;
 
-                //set the partition
+                // set the partition
                 if (this.partition && Number.isInteger(this.partition) && this.partition >= 0){
                     partition = this.partition;
                 } else if(msg.partition && Number.isInteger(msg.partition) && Number(msg.partition) >= 0) {
@@ -180,7 +191,7 @@ module.exports = function(RED) {
                     partition = -1;
                 }
 
-                //set the key
+                // set the key
                 if ( this.key ) {
                     key = this.key;
                 } else if ( msg.key ) {
@@ -189,21 +200,21 @@ module.exports = function(RED) {
                     key = null;
                 }
 
-                //set the topic
+                // set the topic
                 if (this.topic === "" && msg.topic !== "") {
                     topic = msg.topic;
                 } else {
                     topic = this.topic;
                 }
 
-                //set the value
+                // set the value
                 if( typeof msg.payload === 'object') {
                     value = JSON.stringify(msg.payload);
                 } else {
                     value = msg.payload.toString();
                 }
 
-                //set the timestamp
+                // set the timestamp
                 if( (new Date(msg.timestamp)).getTime() > 0 ) {
                     timestamp = msg.timestamp;
                 } else if (msg.timestamp !== undefined) {
@@ -235,5 +246,4 @@ module.exports = function(RED) {
         });
     }
     RED.nodes.registerType("rdkafka out", RdKafkaOutNode);
-
 };
