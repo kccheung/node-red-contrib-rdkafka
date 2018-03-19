@@ -157,11 +157,7 @@ module.exports = function(RED) {
                     // refer to https://github.com/Blizzard/node-rdkafka/blob/master/examples/producer.md
                     var pollLoop = setInterval(function() {
                         producer.poll();
-                        if (counter === maxMessages) {
-                            clearInterval(pollLoop);
-                            producer.disconnect();
-                        }
-                    }, 2000);
+                    }, 10000);
                 });
 
                 // Any errors we encounter, including connection errors
